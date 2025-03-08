@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const { exec } = require('child_process');
+const fs = require('fs');
 const app = express();
 require('dotenv').config();
 const port = Number(process.env.PORT) || 3000;
@@ -22,7 +23,7 @@ app.post('/webhook', (req, res) => {
     if (event === 'push') {
         console.log(`Received push event from GitHub for PM2 instance ${instanceNumber}`);
         
-        // Execute pm2 pull and pm2 restart with the specified instance number
+        // Execute git pull and pm2 restart with the specified instance number
         executeCommands(instanceNumber);
         
         return res.status(200).send(`Webhook received successfully for PM2 instance ${instanceNumber}`);
@@ -32,26 +33,59 @@ app.post('/webhook', (req, res) => {
     res.status(200).send('Event received');
 });
 
-// Function to execute pm2 pull and pm2 restart for a specific instance
+// Function to execute git pull and pm2 restart for a specific instance
 function executeCommands(instanceNumber) {
-    console.log(`Pulling latest changes for PM2 process ${instanceNumber}...`);
-    exec(`pm2 pull ${instanceNumber}`, (error, stdout, stderr) => {
+    // Get the working directory of the PM2 process
+    exec(`pm2 jlist`, (error, stdout, stderr) => {
         if (error) {
-            console.error(`Error executing pm2 pull for process ${instanceNumber}: ${error}`);
+            console.error(`Error getting PM2 process list: ${error}`);
             return;
         }
         
-        console.log(`PM2 pull output: ${stdout}`);
-        
-        console.log(`Restarting PM2 process ${instanceNumber}...`);
-        exec(`pm2 restart ${instanceNumber}`, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Error restarting PM2 process ${instanceNumber}: ${error}`);
+        try {
+            const processes = JSON.parse(stdout);
+            const process = processes.find(p => p.pm_id == instanceNumber);
+            
+            if (!process) {
+                console.error(`PM2 process with ID ${instanceNumber} not found`);
                 return;
             }
             
-            console.log(`PM2 restart output: ${stdout}`);
-        });
+            const workingDir = process.pm2_env.pm_cwd;
+            console.log(`Working directory for PM2 process ${instanceNumber}: ${workingDir}`);
+            
+            // Check if the working directory is a git repository
+            fs.access(`${workingDir}/.git`, fs.constants.F_OK, (err) => {
+                if (err) {
+                    console.error(`The directory ${workingDir} is not a git repository`);
+                    return;
+                }
+                
+                // Execute git pull in the working directory
+                console.log(`Pulling latest changes from Git...`);
+                exec('git pull', { cwd: workingDir }, (error, stdout, stderr) => {
+                    if (error) {
+                        console.error(`Error executing git pull: ${error}`);
+                        return;
+                    }
+                    
+                    console.log(`Git pull output: ${stdout}`);
+                    
+                    // Restart the PM2 process
+                    console.log(`Restarting PM2 process ${instanceNumber}...`);
+                    exec(`pm2 restart ${instanceNumber}`, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error(`Error restarting PM2 process ${instanceNumber}: ${error}`);
+                            return;
+                        }
+                        
+                        console.log(`PM2 restart output: ${stdout}`);
+                    });
+                });
+            });
+        } catch (parseError) {
+            console.error(`Error parsing PM2 process info: ${parseError}`);
+        }
     });
 }
 
