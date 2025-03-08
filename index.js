@@ -2,7 +2,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const { exec } = require('child_process');
 const app = express();
-const port = 3000;
+require('dotenv').config();
+const port = process.env.PORT || 3000;
 
 // Middleware to parse JSON payloads
 app.use(bodyParser.json());
