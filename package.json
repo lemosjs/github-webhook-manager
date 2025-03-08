@@ -1,0 +1,16 @@
+{
+  "name": "github-webhook-manager",
+  "version": "1.0.0",
+  "description": "A simple server that listens for GitHub webhooks and automatically updates and restarts the application",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
