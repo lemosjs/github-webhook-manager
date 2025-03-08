@@ -90,3 +90,129 @@ If the webhook is not working:
 3. Verify that the correct PM2 instance number is specified in the webhook URL
 4. Make sure your PM2 applications have the Git repository configured correctly
 5. Check GitHub's webhook delivery logs for any failed attempts 
+
+#  How to setup NGINX
+
+# Nginx Reverse Proxy Setup Guide
+
+This guide walks through setting up an Nginx reverse proxy server listening on port 3003 and forwarding to a service on port 3004.
+
+## Prerequisites
+
+- Ubuntu/Debian server
+- Root or sudo access
+- Nginx installed (`sudo apt install nginx`)
+
+## Step 1: Create the Nginx Configuration File
+
+Create a new configuration file in the Nginx sites directory:
+
+```bash
+sudo nano /etc/nginx/sites-available/reverse-proxy
+```
+
+## Step 2: Add the Configuration
+
+Paste the following configuration:
+
+```nginx
+server {
+    listen 0.0.0.0:3003;
+    
+    location / {
+        proxy_pass http://localhost:3004;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # Optional: Increase timeout if needed
+        proxy_connect_timeout 90;
+        proxy_send_timeout 90;
+        proxy_read_timeout 90;
+        send_timeout 90;
+    }
+}
+```
+
+Save and exit the editor (Ctrl+X, then Y, then Enter in nano).
+
+## Step 3: Enable the Configuration
+
+Create a symbolic link to enable the site:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/reverse-proxy /etc/nginx/sites-enabled/
+```
+
+## Step 4: Test & Reload Nginx
+
+Test the configuration for syntax errors:
+
+```bash
+sudo nginx -t
+```
+
+If the test passes, reload Nginx:
+
+```bash
+sudo systemctl reload nginx
+```
+
+## Step 5: Configure Firewall
+
+Ensure port 3003 is open in the firewall:
+
+```bash
+sudo ufw allow 3003/tcp
+sudo ufw status
+```
+
+If using a different firewall or cloud provider security group, make sure to open port 3003 there as well.
+
+## Step 6: Verify the Setup
+
+From the server, test local access:
+
+```bash
+curl localhost:3003
+```
+
+From another machine, test remote access:
+
+```bash
+curl http://YOUR_SERVER_IP:3003
+```
+
+## Troubleshooting
+
+If you can access the service locally but not remotely:
+
+1. **Check firewall settings**:
+   ```bash
+   sudo ufw status
+   ```
+
+2. **Verify the server is binding to all interfaces** (the `0.0.0.0:3003` in the config)
+
+3. **Check Nginx error logs**:
+   ```bash
+   sudo tail -f /var/log/nginx/error.log
+   ```
+
+4. **Ensure your service on port 3004 is running**:
+   ```bash
+   curl localhost:3004
+   ```
+
+5. **Check if your cloud provider (AWS, Digital Ocean, etc.) has additional firewall settings** that might be blocking the port.
+
+## Notes
+
+- Replace `http://localhost:3004` with the actual service you want to proxy to
+- Adjust timeout values as needed for your application
+- For production environments, consider adding rate limiting and additional security headers
